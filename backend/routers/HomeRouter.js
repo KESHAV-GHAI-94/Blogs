@@ -1,6 +1,7 @@
 const express= require("express");
 const HomeRouter = express.Router();
-const {Viewposts,detailedpost} = require("../controllers/Postcontroller/postcontrol");
+const auth = require("../middlewares/auth");
+const {Viewposts,detailedpost,likePost,unlikePost} = require("../controllers/Postcontroller/postcontrol");
 
 //api which displays all posts public
 
@@ -10,4 +11,7 @@ HomeRouter.get("/",Viewposts);
 
 HomeRouter.get("/post/:id",detailedpost);
 
+//API FOR likes/dislikes
+HomeRouter.post("/post/:id/like",auth,likePost);
+HomeRouter.post("/post/:id/unlike",auth,unlikePost)
 module.exports =HomeRouter;
