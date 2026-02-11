@@ -1,5 +1,4 @@
 const pool = require("../config/db");
-
 const findUserByEmail = async (email) => {
     const result = await pool.query(
         "SELECT * FROM users WHERE email = $1",
@@ -7,7 +6,6 @@ const findUserByEmail = async (email) => {
     );
     return result.rows[0]; // single user checking from db 
 };
-
 const createUser = async (name, email, password) => {
     const query = `
         INSERT INTO users (name, email, password)
