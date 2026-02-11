@@ -17,7 +17,7 @@ const getAllPosts = async () => {
       posts.id,
       posts.title,
       posts.description,
-      posts.image_url,
+      ENCODE(posts.image_url,'base64') AS image_base64,
       posts.share_count,
       posts.created_at,
       users.name AS author_name
@@ -29,10 +29,16 @@ const getAllPosts = async () => {
 };
 
 const getPostsByUser = async (user_id) => {
-  return pool.query(
-    "SELECT * FROM posts WHERE user_id=$1 ORDER BY created_at DESC",
-    [user_id]
-  );
+  const query = `
+    SELECT 
+      id, title, description,
+      ENCODE(image_url,'base64') AS image_base64,
+      share_count, created_at
+    FROM posts 
+    WHERE user_id=$1 
+    ORDER BY created_at DESC;
+  `;
+  return pool.query(query, [user_id]);
 };
 // update posts 
 const updatePost = async (id, title, description, image_url) => {
@@ -48,10 +54,17 @@ const updatePost = async (id, title, description, image_url) => {
 const deletePost = async (id) => {
   return pool.query("DELETE FROM posts WHERE id=$1 RETURNING *", [id]);
 };
+const getRawPostsByUser = async (user_id) => {
+  return pool.query(
+    "SELECT id FROM posts WHERE user_id=$1",
+    [user_id]
+  );
+};
     module.exports = {
     createPost,
     getAllPosts,
     getPostsByUser,
     updatePost,
     deletePost,
+    getRawPostsByUser
 };

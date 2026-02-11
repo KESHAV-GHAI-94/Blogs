@@ -1,5 +1,6 @@
 const pool = require("../../config/db");
 //fetching comments main comments only where parent comid is null
+//only for api purpose
 const getCommentsByPost = async (req, res) => {
     try{
     const { id } = req.params; //post id

@@ -3,7 +3,7 @@ const HomeRouter = express.Router();
 const auth = require("../middlewares/auth");
 const {Viewposts,detailedpost} = require("../controllers/Postcontroller/postcontrol");
 const {likePost,unlikePost}= require("../controllers/Postcontroller/like-dislike")
-const {getCommentsByPost,addComment,addReply,deletecomment,getCommentsreplyByPost} = require("../controllers/Postcontroller/comments")
+const {getCommentsByPost,addComment,addReply,deletecomment} = require("../controllers/Postcontroller/comments")
 //api which displays all posts public
 
 HomeRouter.get("/",Viewposts);
@@ -16,7 +16,7 @@ HomeRouter.get("/post/:id",detailedpost);
 HomeRouter.post("/post/:id/like",auth,likePost);
 HomeRouter.post("/post/:id/unlike",auth,unlikePost);
 
-//reading comments 
+//reading comments // not used 
 HomeRouter.get("/post/:id/comments",getCommentsByPost);
 //adding comments:
 HomeRouter.post("/post/:id/comment",auth, addComment);

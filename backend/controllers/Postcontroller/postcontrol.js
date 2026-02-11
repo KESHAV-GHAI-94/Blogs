@@ -1,9 +1,11 @@
 const pool = require("../../config/db");
-const {createPost,getAllPosts,getPostsByUser,updatePost,deletePost} = require("../../models/postModel"); 
+const {createPost,getAllPosts,getPostsByUser,updatePost,deletePost,getRawPostsByUser} = require("../../models/postModel");
+
 //api for creting post
 const Postcreated =  async (req,res)=>{
     try {
-    const { title, description, image_url } = req.body;
+    const { title, description} = req.body;
+    const image_url = req.file ? req.file.buffer : null;
     const user_id = req.user.id; 
     const result = await createPost(
         user_id,
@@ -35,21 +37,74 @@ const Viewposts =  async(req,res)=>{
 const detailedpost = async (req, res) => {
     try {
     const postId = req.params.id;
-    const query = `
-        SELECT posts.*, users.name AS author_name
+    const userId = req.user?.id || null;
+    const postquery = `
+        SELECT posts.id,
+        posts.title,
+        posts.description,
+        ENCODE(posts.image_url, 'base64') AS image_base64,
+        posts.share_count,
+        posts.created_at, 
+        users.name AS author_name,
+        COUNT(likes.id) AS like_count
         FROM posts
         JOIN users ON posts.user_id = users.id
-        WHERE posts.id = $1;
-    `;
-    const result = await pool.query(query, [postId]);
-    if (result.rows.length === 0) {
-        return res.status(404).json({ message: "Post not found" });
-    }
-    res.json(result.rows[0]);
+        LEFT JOIN likes ON likes.post_id = posts.id
+        WHERE posts.id = $1
+        GROUP BY posts.id, users.name;
+        `;
+        const postresult = await pool.query(postquery, [postId]);
+        if (postresult.rows.length === 0) {
+            return res.status(404).json({ message: "Post not found" });
+        }
+        const post =postresult.rows[0];
+        let isLiked = false;
+        if (userId) {
+        const likeCheck = await pool.query(
+            "SELECT 1 FROM likes WHERE user_id = $1 AND post_id = $2",
+            [userId, postId]
+        );
+        isLiked = likeCheck.rows.length > 0;
+        }
+        const commentsQuery = `
+        SELECT 
+            c.id,
+            c.comment,
+            c.created_at,
+            c.parent_comment_id,
+            u.name AS commenter_name
+        FROM comments c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.post_id = $1
+        ORDER BY c.created_at ASC;
+        `;
+        const commentsResult = await pool.query(commentsQuery, [postId]);
+        const allComments = commentsResult.rows;
+        //build nested structure
+        const commentMap = {};
+        const nestedComments = [];
+        allComments.forEach(c => {
+        commentMap[c.id] = { ...c, replies: [] };
+        });
+        allComments.forEach(c => {
+        if (c.parent_comment_id) {
+            commentMap[c.parent_comment_id]?.replies.push(commentMap[c.id]);
+        } else {
+            nestedComments.push(commentMap[c.id]);
+        }
+        });
+        res.json({
+        post: {
+            ...post,
+            like_count: Number(post.like_count),
+            isLiked
+        },
+        comments: nestedComments
+        });
     } catch (err) {
-    res.status(500).json({ error: err.message });
+        res.status(500).json({ error: err.message });
     }
-}
+    };
 // API FOR GETING DATA OF USERS OWNED POST
 const UserOwnpost =  async (req, res) => {
     try {
@@ -67,8 +122,9 @@ const UserOwnpost =  async (req, res) => {
 const Updatepost =  async (req, res) => {
     try {
         const id = req.params.id;
-        const { title, description, image_url } = req.body;
-        const check = await getPostsByUser(req.user.id);
+        const { title, description} = req.body;
+        const image_url = req.file ? req.file.buffer : null;
+        const check = await getRawPostsByUser(req.user.id);
         const isOwner = check.rows.some(post => post.id === Number(id));
         if (!isOwner) {
         return res.status(403).json({ message: "Not your post" });
@@ -89,7 +145,7 @@ const Updatepost =  async (req, res) => {
 const Deletepost = async (req, res) => {
     try {
         const id = req.params.id;
-        const check = await getPostsByUser(req.user.id);
+        const check = await getRawPostsByUser(req.user.id);
         const isOwner = check.rows.some(
         post => post.id === Number(id)
         );
@@ -108,7 +164,7 @@ const Deletepost = async (req, res) => {
 const UserOwnpostById = async (req, res) => {
     try {
         const { id } = req.params;
-        const check = await getPostsByUser(req.user.id);
+        const check = await getRawPostsByUser(req.user.id);
         const isOwner = check.rows.some(
         post => post.id === Number(id)
         );
@@ -116,7 +172,11 @@ const UserOwnpostById = async (req, res) => {
         return res.status(403).json({ message: "Not your post" });
         }
         const result = await pool.query(
-        "SELECT * FROM posts WHERE id=$1",
+        `SELECT 
+            id, title, description,
+            ENCODE(image_url, 'base64') AS image_base64,
+            share_count, created_at
+        FROM posts WHERE id=$1`,
         [id]
         );
         if (result.rows.length === 0) {
